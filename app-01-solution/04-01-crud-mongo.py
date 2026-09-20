@@ -10,8 +10,8 @@ from typing import Optional
 # ---------------------------------------------------------
 
 app = FastAPI(
-    title="Student Management API",
-    description="Student Management REST API using FastAPI and MongoDB",
+    title="Enterprise IT Service Desk API",
+    description="IT Service Desk REST API using FastAPI and MongoDB",
     version="2.0.0"
 )
 
@@ -24,73 +24,89 @@ MONGO_URL = "mongodb://localhost:27017"
 
 client = MongoClient(MONGO_URL)
 
-db = client["student_management"]
+db = client["it_service_desk"]
 
-students_collection = db["students"]
+tickets_collection = db["tickets"]
 
 
 # ---------------------------------------------------------
 # 3. Pydantic Models
 # ---------------------------------------------------------
 
-class StudentCreate(BaseModel):
-    name: str = Field(
+class TicketCreate(BaseModel):
+
+    title: str = Field(
+        min_length=5,
+        max_length=100
+    )
+
+    description: str = Field(
+        min_length=10,
+        max_length=500
+    )
+
+    category: str = Field(
         min_length=2,
         max_length=50
     )
 
-    age: int = Field(
-        ge=5,
-        le=100
-    )
-
-    course: str = Field(
+    status: str = Field(
         min_length=2,
-        max_length=50
+        max_length=30
     )
 
 
-class StudentUpdate(BaseModel):
-    name: Optional[str] = Field(
+class TicketUpdate(BaseModel):
+
+    title: Optional[str] = Field(
+        default=None,
+        min_length=5,
+        max_length=100
+    )
+
+    description: Optional[str] = Field(
+        default=None,
+        min_length=10,
+        max_length=500
+    )
+
+    category: Optional[str] = Field(
         default=None,
         min_length=2,
         max_length=50
     )
 
-    age: Optional[int] = Field(
-        default=None,
-        ge=5,
-        le=100
-    )
-
-    course: Optional[str] = Field(
+    status: Optional[str] = Field(
         default=None,
         min_length=2,
-        max_length=50
+        max_length=30
     )
 
 
-class StudentResponse(BaseModel):
+class TicketResponse(BaseModel):
+
     id: str
-    name: str
-    age: int
-    course: str
+    title: str
+    description: str
+    category: str
+    status: str
 
 
 # ---------------------------------------------------------
 # 4. Helper Function
 # ---------------------------------------------------------
 
-def student_helper(student) -> dict:
+def ticket_helper(ticket) -> dict:
     """
     Convert MongoDB document into API response format.
     """
 
     return {
-        "id": str(student["_id"]),
-        "name": student["name"],
-        "age": student["age"],
-        "course": student["course"]
+        "id": str(ticket["_id"]),
+        "title": ticket["title"],
+        "description": ticket["description"],
+        "category": ticket["category"],
+        "status": ticket["status"]
     }
 
 
@@ -100,103 +116,104 @@ def student_helper(student) -> dict:
 
 @app.get("/")
 def home():
+
     return {
-        "message": "Student Management API",
+        "message": "Enterprise IT Service Desk API",
         "version": "2.0.0"
     }
 
 
 # ---------------------------------------------------------
-# 6. CREATE Student
+# 6. CREATE Ticket
 # ---------------------------------------------------------
 
 @app.post(
-    "/students",
-    response_model=StudentResponse,
+    "/tickets",
+    response_model=TicketResponse,
     status_code=status.HTTP_201_CREATED
 )
-def create_student(student: StudentCreate):
+def create_ticket(ticket: TicketCreate):
 
-    student_data = student.model_dump()
+    ticket_data = ticket.model_dump()
 
-    result = students_collection.insert_one(student_data)
+    result = tickets_collection.insert_one(ticket_data)
 
-    created_student = students_collection.find_one(
+    created_ticket = tickets_collection.find_one(
         {"_id": result.inserted_id}
     )
 
-    return student_helper(created_student)
+    return ticket_helper(created_ticket)
 
 
 # ---------------------------------------------------------
-# 7. GET All Students
+# 7. GET All Tickets
 # ---------------------------------------------------------
 
 @app.get(
-    "/students",
-    response_model=list[StudentResponse]
+    "/tickets",
+    response_model=list[TicketResponse]
 )
-def get_students():
+def get_tickets():
 
-    students = students_collection.find()
+    tickets = tickets_collection.find()
 
     return [
-        student_helper(student)
-        for student in students
+        ticket_helper(ticket)
+        for ticket in tickets
     ]
 
 
 # ---------------------------------------------------------
-# 8. GET Student by ID
+# 8. GET Ticket by ID
 # ---------------------------------------------------------
 
 @app.get(
-    "/students/{student_id}",
-    response_model=StudentResponse
+    "/tickets/{ticket_id}",
+    response_model=TicketResponse
 )
-def get_student(student_id: str):
+def get_ticket(ticket_id: str):
 
     # Validate MongoDB ObjectId
 
-    if not ObjectId.is_valid(student_id):
+    if not ObjectId.is_valid(ticket_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID"
+            detail="Invalid ticket ID"
         )
 
-    student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+    ticket = tickets_collection.find_one(
+        {"_id": ObjectId(ticket_id)}
     )
 
-    if student is None:
+    if ticket is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail="Ticket not found"
         )
 
-    return student_helper(student)
+    return ticket_helper(ticket)
 
 
 # ---------------------------------------------------------
-# 9. UPDATE Student
+# 9. UPDATE Ticket
 # ---------------------------------------------------------
 
 @app.put(
-    "/students/{student_id}",
-    response_model=StudentResponse
+    "/tickets/{ticket_id}",
+    response_model=TicketResponse
 )
-def update_student(
-    student_id: str,
-    student: StudentUpdate
+def update_ticket(
+    ticket_id: str,
+    ticket: TicketUpdate
 ):
 
-    if not ObjectId.is_valid(student_id):
+    if not ObjectId.is_valid(ticket_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID"
+            detail="Invalid ticket ID"
         )
 
-    update_data = student.model_dump(
+    update_data = ticket.model_dump(
         exclude_unset=True
     )
 
@@ -206,48 +223,48 @@ def update_student(
             detail="No fields provided for update"
         )
 
-    result = students_collection.update_one(
-        {"_id": ObjectId(student_id)},
+    result = tickets_collection.update_one(
+        {"_id": ObjectId(ticket_id)},
         {"$set": update_data}
     )
 
     if result.matched_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail="Ticket not found"
         )
 
-    updated_student = students_collection.find_one(
-        {"_id": ObjectId(student_id)}
+    updated_ticket = tickets_collection.find_one(
+        {"_id": ObjectId(ticket_id)}
     )
 
-    return student_helper(updated_student)
+    return ticket_helper(updated_ticket)
 
 
 # ---------------------------------------------------------
-# 10. DELETE Student
+# 10. DELETE Ticket
 # ---------------------------------------------------------
 
 @app.delete(
-    "/students/{student_id}",
+    "/tickets/{ticket_id}",
     status_code=status.HTTP_204_NO_CONTENT
 )
-def delete_student(student_id: str):
+def delete_ticket(ticket_id: str):
 
-    if not ObjectId.is_valid(student_id):
+    if not ObjectId.is_valid(ticket_id):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid student ID"
+            detail="Invalid ticket ID"
         )
 
-    result = students_collection.delete_one(
-        {"_id": ObjectId(student_id)}
+    result = tickets_collection.delete_one(
+        {"_id": ObjectId(ticket_id)}
     )
 
     if result.deleted_count == 0:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="Student not found"
+            detail="Ticket not found"
         )
 
     return None
